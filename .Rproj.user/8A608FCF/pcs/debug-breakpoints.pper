@@ -1,0 +1,21 @@
+{
+    "debugBreakpointsState" : {
+        "breakpoints" : [
+            {
+                "editor_line_number" : 2180,
+                "editor_state" : 1,
+                "function_name" : "toplevel",
+                "function_steps" : "",
+                "id" : 0,
+                "is_package_breakpoint" : false,
+                "is_pending_debug_completion" : false,
+                "line_number" : 2180,
+                "needs_updated_steps" : false,
+                "package_name" : "",
+                "path" : "D:/Windows_Workspace/R_projects/Project_DataMining_Aquaculture/Project_Galaxidi/DM_Aqua_Project_Periodic_Galaxidi/server.R",
+                "state" : 1,
+                "type" : 1
+            }
+        ]
+    }
+}
