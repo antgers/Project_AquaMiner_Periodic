@@ -1,7 +1,7 @@
 ### Version Periodic (Sampling To Sampling) Datasets
 #
 # Created: 30/08/2016
-# Last Modified: 06/10/2016
+# Last Modified: 23/10/2016
 #
 # Author: Gerasimos Antzoulatos (i2s)
 #
@@ -298,7 +298,7 @@ shinyUI(
                        ) # end fluidPage
                   ),  # end tabPanel ML Models
 
-#---------------------------------------------------------- Third MenuPage --- Business Cases     
+#---------------------------------------------------------- Forth MenuPage --- Business Cases     
                   tabPanel(" KPIs Table Estimation ", id="MenuPage_3",
                           fluidPage(
                               sidebarPanel(
@@ -317,20 +317,33 @@ shinyUI(
                                                          "SGR"=4,
                                                          "Mortality %"=5
                                                         ),
-                                            selected=1, multiple=FALSE),
-                               hr(),
-                               actionButton(inputId = 'ViewKPITable',  label = 'View KPI Table')
-                              ),  # end sidebarPanel
-                              mainPanel(
-                                  plotlyOutput("plot_3D_Table",height = 800, width = 800),
-                                  h3(" KPIs Table estimation by Machine Learning modeling "),
-                                  tableOutput("KPI_Table")
+                                            selected=1, multiple=FALSE)
                                 
+                              ),  # end sidebarPanel
+                              mainPanel(tabsetPanel( 
+                                  tabPanel("Cross-Tabular", 
+                                           fluidRow(column(10, h4(" KPIs Table estimation by Machine Learning modeling:")),
+                                                    column(2, actionButton(inputId = 'ViewKPITable',  label = 'View KPI Table'))
+                                           ),
+                                           tableOutput("KPI_Table")
+                                  ), # end tabPanel Cross-Tabular
+                                  tabPanel("2D", 
+                                           fluidRow(column(6, uiOutput("CatAvWt")),
+                                                    column(6, actionButton(inputId = 'View2D',  label = 'View 2D'))
+                                           ),
+                                           plotlyOutput("plot_2D_Table")
+                                  ), # end tabPanel 2D
+                                  tabPanel("3D",
+                                           fluidRow(column(3, actionButton(inputId = 'View3D',  label = 'View 3D'))
+                                           ),
+                                           plotlyOutput("plot_3D_Table",height = 800, width = 800)
+                                  ) # end tabPanel 3D
+                                ) # end tabSetPanel
                               ) # end mainPanel
                           ) # end fluidPage
                   ),  # end tabPanel Business Cases
 
-#---------------------------------------------------------- Forth MenuPage --- Business Cases     
+#---------------------------------------------------------- Fifth MenuPage --- Business Cases     
                   tabPanel(" Methodological Approach ", id="MenuPage_4",
                            fluidPage(
 
@@ -343,7 +356,7 @@ shinyUI(
                       ) # end fluidPage
                   ),  # end tabPanel Business Cases
 
-#---------------------------------------------------------- Fifth MenuPage --- Business Cases     
+#---------------------------------------------------------- Sixth MenuPage --- Business Cases     
                   tabPanel(" About ", id="MenuPage_5", 
                            fluidPage( 
                             

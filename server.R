@@ -1,7 +1,7 @@
 ### Version Periodic (Sampling To Sampling) Datasets
 #
 # Created: 09/06/2016
-# Last Modified: 31/08/2016
+# Last Modified: 23/10/2016
 #
 # Author: Gerasimos Antzoulatos (i2s)
 #
@@ -2062,11 +2062,9 @@ shinyServer(function(input, output, session){
   #--------------------------------------------------------------------------------------------
   #     Page "KPIs Table estimation" 
   #--------------------------------------------------------------------------------------------
-  
-  estimateKPI.Table <- reactive({ 
-    
-    rate = 0.8
-    predictors <- c("Avg.Temp", "Period.Av.Weight")
+  #
+  #---------------- Calculate KPI Table
+  estimateKPI.DF <- reactive({ 
     
     if (input$radioKPI == 1){  
       response.var <- "Biol.FCR.Period"
@@ -2083,13 +2081,9 @@ shinyServer(function(input, output, session){
     # "data": dataset that based on the user choices in the first page
     ds <- passData()  
   
-    # Step 1: Create and find the best model
+    # Step 1: Create model that both predictors are non-linear
     
-    # res.best.mod <- Find_Best_Model(ds, rate, response.var, predictors)
-    
-    # model that both predictors are non-linear
-    
-    predictors.vars <- c("Period.Av.Weight", "Avg.Temp")
+    predictors.vars <- c("Avg.Temp","End.Av.Weight")
     fmla <- as.formula( paste(response.var, 
                                paste(paste0("s(",predictors.vars, ", bs= \'cr\' )"), collapse="+"), sep="~") )
     gam.mod <- gam(formula=fmla, family=gaussian(link=identity), data=ds)
@@ -2104,32 +2098,24 @@ shinyServer(function(input, output, session){
     # Step 2: Create the KPI Table
     #
     # Create the Weight categories and Temperature values
-    minAvTemp <- max(10, round(min(ds$Avg.Temp)-1, digits=0) ) 
-    maxAvTemp <- min(40, round(max(ds$Avg.Temp)+1, digits=0) ) 
+    minAvTemp <- max(10, round(min(ds[, predictors.vars[1] ])-1, digits=0) ) 
+    maxAvTemp <- min(30, round(max(ds[, predictors.vars[1] ])+1, digits=0) ) 
     stepAvTemp <- input$temp.step
     Temp.vals <- seq(from = minAvTemp, to = maxAvTemp, by= stepAvTemp)
     
-    minAvWeight <- min(ds$Period.Av.Weight) 
-    maxAvWeight <- max(ds$Period.Av.Weight) 
+    minAvWeight <- min(ds[, predictors.vars[2] ]) 
+    maxAvWeight <- max(ds[, predictors.vars[2] ]) 
     step.WeightCat <- input$weight.step
-    AvWeight.vals <- seq(from = min(0,minAvWeight), to = maxAvWeight + step.WeightCat, by = step.WeightCat) 
-
-    pred.table.values <- predict(gam.mod, newdata = expand.grid("Avg.Temp" = Temp.vals, 
-                                                                 "Period.Av.Weight" = AvWeight.vals))
+    AvWeight.vals <- seq(from = min(0, minAvWeight)+step.WeightCat, to = maxAvWeight, by = step.WeightCat) 
     
-    mat<-matrix(pred.table.values, nrow =length(Temp.vals), ncol= length(AvWeight.vals))
-    mat <- t(mat)
-   
-    colnames(mat) <- paste(Temp.vals, sep=" ")
-    row.names(mat) <- paste(AvWeight.vals, sep=" ")
+    newdata = expand.grid("Avg.Temp" = Temp.vals, "End.Av.Weight" = AvWeight.vals)
+    KPI.DF <- predict(gam.mod, newdata)
+    KPI.DF <- as.data.frame( cbind(newdata, round(KPI.DF, digits=3)) )
+    names(KPI.DF) <- c(predictors.vars, response.var)
     
-    KPI.Table <- as.data.frame( cbind("AvWeightCat"=AvWeight.vals, round(mat,3)) )
+    KPI.DF <- abs(KPI.DF)
     
-    if (input$radioKPI == 4){      
-      KPI.Table <- abs(KPI.Table)
-    }  
-    
-    return(KPI.Table)
+    return(KPI.DF)
                                
   })
   
@@ -2141,26 +2127,54 @@ shinyServer(function(input, output, session){
     else{
       isolate({
               
-          KPI.Table <- estimateKPI.Table()
+          KPI.DF <- estimateKPI.DF()
+          colnames.KPI.DF <- names(KPI.DF)
+          
+          # Reshape raw data.frame KPI.DF to cross-tabular KPI.Table
+          Temp.vals <- unique(KPI.DF[,1])
+          nc <- length(Temp.vals)
+          
+          AvWeight.vals <- unique(KPI.DF[,2])
+          AvWeight.vals <- as.vector(AvWeight.vals)
+          nr <- length(AvWeight.vals)
+          
+          mat <- round( matrix(KPI.DF[,3], nrow = nr, ncol = nc, byrow = TRUE), digits=3 )
+          
+          colnames(mat) <- Temp.vals
+          KPI.Table <- as.data.frame( cbind("EndAvWeightCat"=AvWeight.vals, mat) )
+          
           return(KPI.Table)
       })
     }
     
   })
-  
-  #------------------ 3D plot KPI Table
-  output$plot_3D_Table <- renderPlotly({ 
+ 
+  #-------------------------- Choose Avg. Weight Category
+  output$CatAvWt <- renderUI({
+    data <- passData()
     
-    # if (input$goKPIAnalysis == 0){
-    #   return() }
-    # else{ 
-    #   isolate({
-    #     
-            # inputs
-            KPI.Table <- estimateKPI.Table()
+    minAvWeight <- min(data$End.Av.Weight) 
+    maxAvWeight <- max(data$End.Av.Weight) 
+    step.WeightCat <- input$weight.step
+    AvWeight.vals <- seq(from = min(0, minAvWeight)+step.WeightCat, to = maxAvWeight, by = step.WeightCat)
+    
+    selectInput(inputId='filterCatAvWt', label='End Average Weight Category:',
+                choices=AvWeight.vals, multiple=FALSE)
+    
+  })
+  
+  #------------------ 2D plot KPI Table
+  output$plot_2D_Table <- renderPlotly({ 
+      
+    if (input$View2D == 0){
+      return() }
+    else{
+      isolate({
+          
+            KPI.Table <- estimateKPI.DF()
             ds <- passData()
-           
-            predictors.vars <- c("Period.Av.Weight", "Avg.Temp")
+            
+            predictors.vars <- c("Avg.Temp", "End.Av.Weight")
             
             if (input$radioKPI == 1){  
               response.var <- "Biol.FCR.Period"
@@ -2176,59 +2190,123 @@ shinyServer(function(input, output, session){
             
             dset <- ds[ , names(ds) %in% c(predictors.vars, response.var)] 
             
-            # KPIs table
-            nc <- ncol(KPI.Table)
             nr <- nrow(KPI.Table)
-            # remove first column from table
-            table.data <- as.matrix(KPI.Table[,-1])
-            
-         #   RawData <- gather( table.data, predictors.vars[2], response.vars, 1:(nc-1) )
-        #    newRawData <- RawData %>% select(predictors.vars[2], predictors.vars[1], response.vars )
-            
-            f <- list(
-              family = "Courier New, monospace",
-              size = 14,
-              color = "#7f7f7f"
-            )
-            
-            # "Avg.Temp" axis (columns of KPI.Table)
-            ax1.names <- colnames(KPI.Table)
-            ax1.vals <- as.numeric(as.vector(ax1.names[2:nc]))
-            ax1.range = c( min(ax1.vals), max(ax1.vals) )
-            ax1.lab <- list(range=ax1.range, tickmode="array",tickvals=ax1.vals, ticktext=as.character(ax1.vals), 
-                          nticks = nc-1, showline=T, title = predictors.vars[2], titlefont = f) 
-            
-            # "Period.Av.Weight" axis (rows of KPI.Table)
-            ax2.vals <- as.numeric(as.vector(KPI.Table[1:nr, 1]))
-            ax2.range = c( min(ax2.vals), max(ax2.vals) )
-            ax2.lab <- list(range=ax2.range, tickmode="array",tickvals=ax2.vals, ticktext=as.character(ax2.vals), 
-                          nticks = nr, showline=T, title = predictors.vars[1], titlefont = f)
-            
-            # Z = "KPI" axis
-            z.lab <- list(title = response.var, titlefont = f)
-            
-            scene=list(xaxis = ax2.lab, yaxis = ax1.lab, zaxis = z.lab)
-                       # camera = list(eye = list(x = 1.25, y = 1.25, z = 1.25)))
-            
-            # 
-            fig.title <- paste(response.var, "table per", predictors.vars[1], "and", predictors.vars[2], sep=" ")
-            p <- plot_ly(x=ax2.vals, y=ax1.vals, z = table.data, type = "surface") %>%
-                        layout(title = fig.title, scene=scene, width = 800, height = 600)
-                          # add_trace(data = dset, x = dset[, predictors.vars[1]], 
-                          #           y = dset[, predictors.vars[2]], z = dset[, response.var],
-                          #           mode = "markers", type = "scatter3d",
-                          #           marker = list(size = 3, color = "red", symbol = 104)) %>% 
-            
-            #p <- plot_ly(newRawData, x=~predictors.vars[2], y=~predictors.vars[1], 
-            #             z = ~response.var, type = "surface") %>%
-            #              layout(title = fig.title, scene=scene, width = 800, height = 600) 
-            
-         
-      #   })
-      # }    
+            nc <- ncol(KPI.Table)
+              
+            # detect Av.Weight categories
+            cat.av.wt <- as.numeric(input$filterCatAvWt)
+            step.WeightCat <- as.numeric(input$weight.step)
+             
+            temp.Table <- KPI.Table[ KPI.Table[, predictors.vars[2] ] == cat.av.wt, ]
+            x.axis <- as.numeric(temp.Table[, predictors.vars[1] ])
+            y.axis <- temp.Table[, response.var ]
+                
+            minAvWeight <- min(dset[, predictors.vars[2] ])
+            if ( min(0, minAvWeight)+step.WeightCat == cat.av.wt ){
+                  act.data.cat <- dset %>% filter( dset[, predictors.vars[2]] <= cat.av.wt ) 
+            }else{                                       
+                  act.data.cat <- dset %>% filter( dset[, predictors.vars[2]] > cat.av.wt - step.WeightCat & 
+                                                   dset[, predictors.vars[2]] <= cat.av.wt )
+            }  
+            if ( nrow(act.data.cat) > 0 )
+            {
+                xd <- act.data.cat[ , predictors.vars[1] ]
+                yd <- act.data.cat[ , response.var ]
+                  
+                plot.title <- paste(response.var, "per", predictors.vars[1], "for", predictors.vars[2], cat.av.wt, sep=" ")
+                p <-ggplot() + 
+                        geom_point(data = act.data.cat, aes(x=xd, y=yd),size=3, col='blue') + 
+                        geom_line(data = temp.Table, aes(x.axis,y.axis), color="red", size=3) + 
+                        xlab(paste0(predictors.vars[1], " axis") ) + ylab(paste0(response.var, " values")) + 
+                        ggtitle(plot.title) 
+               
+            } # end if
+             
+            ggplotly(p)
+        }) # end isolate
+      } # end if...else
   })
   
-  
+  #------------------ 3D plot KPI Table
+  output$plot_3D_Table <- renderPlotly({
+
+    if (input$View3D == 0){
+      return() }
+    else{
+      isolate({
+
+        # inputs
+        KPI.DF <- estimateKPI.DF()
+        ds <- passData()
+    
+        predictors.vars <- c("Avg.Temp", "End.Av.Weight")
+        
+        if (input$radioKPI == 1){  
+          response.var <- "Biol.FCR.Period"
+        }else if (input$radioKPI == 2){  
+          response.var <- "Econ.FCR.Period"
+        }else if (input$radioKPI == 3){ 
+          response.var <- "SFR.Period.Perc"
+        }else if (input$radioKPI == 4){      
+          response.var <- "SGR.Period.Perc"
+        }else if (input$radioKPI == 5){      
+          response.var <- "Mortality.Perc"
+        }
+        
+        dset <- ds[, names(ds) %in% c(predictors.vars,response.var)]
+        
+        # x-axis = Avg.Temp, y-axis = End.Av.Weight
+        x.vals <- unique( as.numeric( KPI.DF[, predictors.vars[1]]) )
+        y.vals <- unique( as.numeric( KPI.DF[, predictors.vars[2]]) )
+        M <- mesh(x.vals, y.vals)
+        
+        nr <- length(x.vals)
+        nc <- length(y.vals)
+        
+        zvar <- as.numeric(KPI.DF[, response.var])
+        KPI.DF[, response.var] <- round(zvar, digits=3 )
+        mat <- matrix(zvar, nrow = nr, ncol = nc, byrow = TRUE)
+        
+        # format 3D plot
+        #
+        f <- list(
+                  family = "Courier New, monospace",
+                  size = 14,
+                  color = "#7f7f7f"
+                 )
+        
+        fig.title <- paste(response.var, "table per", predictors.vars[1], "and", predictors.vars[2], sep=" ")
+             
+        # x-axis = Avg.Temp
+        ax1.range <- range(x.vals)
+        ax1.lab <- list(range=ax1.range, # tickmode="array", tickvals=x.vals, ticktext=as.character(x.vals), 
+                        # nticks = nr-1, showline=T, 
+                        title = predictors.vars[1], titlefont = f) 
+        
+        # y-axis = End.Av.Weight
+        ax2.range <- range(y.vals)
+        ax2.lab <- list(range=ax2.range, #tickmode="array",tickvals=y.vals, ticktext=as.character(y.vals),
+                          #      nticks = nc, showline=T, 
+                        title = predictors.vars[2], titlefont = f)
+
+        # Z = "KPI" axis
+        z.lab <- list(title = response.var, titlefont = f)
+        
+        cust.scene = list(xaxis = ax1.lab, yaxis = ax2.lab, zaxis = z.lab)
+             
+        p <- plot_ly(x = M$x, y = M$y, z = mat, type = "surface") %>% 
+                add_trace(data = dset, x = dset[, predictors.vars[1]],
+                    y = dset[, predictors.vars[2]], z = dset[, response.var],
+                    mode = "markers", type = "scatter3d",
+                    marker = list(size = 3, color = "red", symbol = 104)) %>%
+                    layout(title = fig.title, scene=cust.scene, width = 800, height = 600) 
+
+        print(p)
+        
+      }) # end isolate
+    } # end if...else
+  })
+        
   #--------------------------------------------------------------------------------------------
   #     Page "About" --- buzz words
   #--------------------------------------------------------------------------------------------

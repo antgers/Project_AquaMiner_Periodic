@@ -1,7 +1,7 @@
 ### Version Periodic (Sampling To Sampling) Datasets
 #
 # Created: 09/06/2016
-# Last Modified: 06/10/2016
+# Last Modified: 23/10/2016
 #
 # Author: Gerasimos Antzoulatos (i2s)
 #-------------------------------------------------------------
@@ -25,6 +25,7 @@ library("XLConnect")
 library("graphics")
 library("ggplot2")
 library("plotly")
+library("plot3D")
 library("scales")
 library("ggthemr") # devtools::install_github('ggthemr', 'cttobin')
 library("ggthemes")
@@ -172,9 +173,12 @@ create.dataset <- function(dataset){
   if ("GROUPING.PROD.BGT" %in% ds.names){data <- cbind( data,"GROUPING.PROD.BGT" = dataset$GROUPING.PROD..BGT ) }
 
   # Filter the dataset
-  # data <- data %>% filter( (Econ.FCR.Period > 0 & Econ.FCR.Period < 50)  ) %>%
-  #                  filter( Mortality.Perc <= 100 ) %>% filter( Diff.Days >= 10 ) %>%
-  #                  filter( LTD.Econ.FCR >= 0.01 & LTD.Econ.FCR <= 100 )
+  data <- data %>% filter( (Econ.FCR.Period >= 0.5 & Econ.FCR.Period <= 5.5)  ) %>%
+                   filter( (Biol.FCR.Period >= 0.5 & Biol.FCR.Period <= 5.5)  ) %>%
+                   filter( Mortality.Perc <= 5 ) %>% filter( LTD.Mortality.Perc <= 10 ) %>%
+                   filter( LTD.Econ.FCR >= 0.5 & LTD.Econ.FCR <= 5.5 ) %>%
+                   filter( SFR.Period.Perc > 0 ) %>% filter( Diff.Days >= 10 ) %>% 
+                   filter( SGR.Period.Perc > 0 )
 
   return(data)
 
